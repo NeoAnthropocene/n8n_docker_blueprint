@@ -23,13 +23,10 @@ services:
 
   n8n:
     container_name: n8n
+    image: docker.n8n.io/n8nio/n8n
     restart: unless-stopped
-# this is for ffmpeg support
-#    build: . 
-# this is for ffmpeg support 
     ports:
-      - "127.0.0.1:5678:5678" # Only accessible via local Nginx for security
-      # - "5678:5678"         # production'da genellikle kaldırılır / reverse proxy arkasına alınır
+      - "127.0.0.1:5678:5678" # Only accessible via local Nginx or Ngrok for security
 
     environment:
       # ────────────────────────────────────────────────
@@ -55,7 +52,10 @@ services:
       - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=5678
       - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
-      - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_HOST}/
+      # The webhook URL will automatically pick up N8N_HOST, but when running ngrok, 
+      # the user needs to export WEBHOOK_URL=https://<ngrok-id>.ngrok.app in their terminal before launching compose,
+      # OR just pass it as WEBHOOK_URL. We will define it smoothly.
+      - WEBHOOK_URL=${WEBHOOK_URL:-${N8N_PROTOCOL}://${N8N_HOST}/}
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Europe/Istanbul}
 
       # Production / Güvenlik önerileri
