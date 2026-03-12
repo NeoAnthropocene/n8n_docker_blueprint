@@ -1,0 +1,96 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+    - "127.0.0.1:5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - n8n-local
+
+  n8n:
+    container_name: n8n
+    restart: unless-stopped
+# this is for ffmpeg support
+#    build: . 
+# this is for ffmpeg support 
+    ports:
+      - "127.0.0.1:5678:5678" # Only accessible via local Nginx for security
+      # - "5678:5678"         # production'da genellikle kaldırılır / reverse proxy arkasına alınır
+
+    environment:
+      # ────────────────────────────────────────────────
+      #  PostgreSQL Database Settings
+      # ────────────────────────────────────────────────
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      # ────────────────────────────────────────────────
+      #  NODE.JS MEMORY OPTIMIZATION
+      # ────────────────────────────────────────────────
+      # Tells Node.js it can use up to 4GB for the n8n app itself.
+      # The remaining 8GB is left free for the spawned FFmpeg processes.
+      - NODE_OPTIONS=--max-old-space-size=4096
+
+      # ────────────────────────────────────────────────
+      #  n8n Core Settings
+      # ────────────────────────────────────────────────
+
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_HOST}/
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Europe/Istanbul}
+
+      # Production / Güvenlik önerileri
+      - NODE_ENV=production
+      - N8N_LOG_LEVEL=info
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_METRICS=false
+      - N8N_USER_MANAGEMENT_DISABLED=false     # auth kullanıyorsan false bırak
+      - N8N_BASIC_AUTH_ACTIVE=false             # eğer basic auth istemiyorsan
+
+      # Diğer faydalı ayarlar (isteğe bağlı)
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=336             # 14 gün
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+  # n8n 2.1 sonrası eklendi
+      - NODES_EXCLUDE=[]
+      - N8N_RESTRICT_FILE_ACCESS_TO=/data/shared
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./local-files:/files                    # opsiyonel: dosyaları dışarı almak istersen
+      - ./shared:/data/shared
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - n8n-local
+
+networks:
+  n8n-local:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  n8n_data:
