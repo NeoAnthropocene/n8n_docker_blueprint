@@ -2,6 +2,7 @@
 .env
 *.env
 .env.*
+!.env.example
 
 # n8n Docker data volumes
 local-files/
